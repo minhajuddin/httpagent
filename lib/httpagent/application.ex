@@ -13,6 +13,7 @@ defmodule HA.Application do
       HAWeb.Telemetry,
       # Start the PubSub system
       {Phoenix.PubSub, name: HA.PubSub},
+      {Finch, name: HAFinch},
       # Start the Endpoint (http/https)
       HAWeb.Endpoint
       # Start a worker by calling: HA.Worker.start_link(arg)

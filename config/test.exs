@@ -20,3 +20,7 @@ config :httpagent, HAWeb.Endpoint,
 
 # Print only warnings and errors during test
 config :logger, level: :warn
+
+config :cortex,
+  enabled: true,
+  clear_before_running_tests: true
