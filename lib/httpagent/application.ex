@@ -13,7 +13,11 @@ defmodule HA.Application do
       HAWeb.Telemetry,
       # Start the PubSub system
       {Phoenix.PubSub, name: HA.PubSub},
-      {Finch, name: HAFinch},
+      {Finch,
+       name: HAFinch,
+       pools: %{
+         default: Application.get_env(:httpagent, :finch_default_pool_opts)
+       }},
       # Start the Endpoint (http/https)
       HAWeb.Endpoint
       # Start a worker by calling: HA.Worker.start_link(arg)

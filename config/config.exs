@@ -28,6 +28,17 @@ config :logger, :console,
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason
 
+config :httpagent,
+  finch_default_pool_opts: [
+    size: 2,
+    count: 1,
+    # https://hexdocs.pm/mint/Mint.HTTP.html#connect/4-options
+    conn_opts: [
+      # connect timeout in milliseconds
+      transport_opts: [timeout: 100]
+    ]
+  ]
+
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
 import_config "#{Mix.env()}.exs"

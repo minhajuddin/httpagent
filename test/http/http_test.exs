@@ -2,6 +2,15 @@ defmodule HA.HTTPTest do
   use HA.DataCase
 
   alias HA.HTTP
+  require Logger
+
+  @test_port 4032
+  def test_url(path), do: "http://localhost:#{@test_port}/#{path}"
+
+  setup_all do
+    Plug.Cowboy.http(MockServer, [], port: @test_port)
+    on_exit(fn -> Plug.Cowboy.shutdown(MockServer.HTTP) end)
+  end
 
   describe "error conditions return an error response" do
     test "when url is invalid" do
@@ -33,8 +42,79 @@ defmodule HA.HTTPTest do
 
   describe "timeouts" do
     test "when we timeout connecting" do
-      assert {:error, error} = HTTP.request(:get, "http://google.com:4082/")
-      assert error == "test"
+      assert {elapsed_us, {:error, error}} =
+               :timer.tc(fn -> HTTP.request(:get, "http://google.com:4082/") end)
+
+      assert error.reason == :timeout
+      # connect timeout is 100 ms
+      assert round(elapsed_us / 1000) in 100..110
     end
+
+    test "when we timeout reading" do
+      assert {:error, error} = HTTP.request(:get, test_url("sleep/200"), [], nil, 200)
+      assert error.reason == :timeout
+    end
+
+    # This is currently failing
+    @tag :skip
+    test "when pool times out" do
+      test_pid = self()
+      iters = 1..60
+
+      Enum.each(iters, fn i ->
+        spawn(fn ->
+          send(test_pid, {:done, i})
+          assert {:ok, resp} = HTTP.request(:get, test_url("sleep/200"), [], nil, 300)
+        end)
+      end)
+
+      Enum.each(iters, fn i ->
+        receive do
+          {:done, ^i} -> :ok
+        after
+          10_000 -> raise "Shouldn't happen"
+        end
+      end)
+
+      assert {:error, error} = HTTP.request(:get, test_url("/"))
+    end
+  end
+
+  describe "valid status codes" do
+    for status <-
+          Enum.concat([
+            200..208,
+            300..308,
+            400..418,
+            422..426,
+            428..429,
+            [431],
+            500..508
+          ]) do
+      @status status
+      test "when status code is #{@status}" do
+        status = @status
+        url = test_url("/status/#{status}")
+
+        body = MockServer.content_for(to_string(status))
+
+        assert {:ok, resp} = HTTP.request(:get, url)
+        assert resp.body == body
+      end
+    end
+  end
+
+  describe "large response" do
+    test "returns body" do
+      assert {:ok, resp} = HTTP.request(:get, test_url("large-response"))
+      assert String.length(resp.body) == 1000_000
+    end
+  end
+
+  describe "edge cases" do
+    @tag :skip
+    test "when response is smaller than content-length"
+    @tag :skip
+    test "when response is larger than content-length"
   end
 end

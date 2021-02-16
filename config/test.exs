@@ -23,4 +23,4 @@ config :logger, level: :warn
 
 config :cortex,
   enabled: true,
-  clear_before_running_tests: true
+  clear_before_running_tests: false
