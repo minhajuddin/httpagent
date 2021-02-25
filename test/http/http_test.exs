@@ -138,5 +138,26 @@ defmodule HA.HTTPTest do
       assert resp.status == 501
       assert 2 == MockServer.count_for(ref)
     end
+
+    test "does not retry for non 5xx" do
+      ref = :erlang.unique_integer([:positive])
+      assert {:ok, resp} = HTTP.request(%Request{url: test_url("refs/#{ref}/200")})
+      assert resp.status == 200
+      assert 1 == MockServer.count_for(ref)
+    end
+  end
+
+  describe "idempotency key" do
+    test "uses same idempotency key for all retries" do
+      ref = :erlang.unique_integer([:positive])
+      assert {:ok, resp} = HTTP.request(%Request{url: test_url("refs/#{ref}/500")})
+      assert resp.status == 500
+      assert 4 == MockServer.count_for(ref)
+      headers = MockServer.agent_get(fn state -> state[{to_string(ref), :headers}] end)
+      id_keys = headers |> Enum.map(& &1["idempotency-key"])
+      assert Enum.count(id_keys) == 4
+      assert Enum.uniq(id_keys) |> Enum.count() == 1
+      assert hd(id_keys) |> String.length() > 16
+    end
   end
 end

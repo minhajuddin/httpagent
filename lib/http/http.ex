@@ -2,13 +2,26 @@ defmodule HA.HTTP do
   require Logger
 
   defmodule Request do
+    alias __MODULE__
+
     defstruct method: :get,
               url: nil,
               headers: [],
               body: nil,
               receive_timeout: nil,
               retry: 3,
+              idempotency_key: nil,
               follow_redirects: true
+
+    def build(attrs = []) do
+      struct(__MODULE__, attrs)
+    end
+
+    def set_idempotency_key(%Request{idempotency_key: nil} = req) do
+      %{req | idempotency_key: :crypto.strong_rand_bytes(16) |> Base.url_encode64(padding: false)}
+    end
+
+    def set_idempotency_key(req), do: req
   end
 
   # TODO: these should be read from the input request payload or config
@@ -16,6 +29,8 @@ defmodule HA.HTTP do
   @pool_timeout 1
 
   def request(%Request{} = request) do
+    request = Request.set_idempotency_key(request)
+
     case _request(request) do
       {:ok, resp} when resp.status >= 500 and request.retry > 0 ->
         # TODO: emit telemetry
@@ -37,7 +52,6 @@ defmodule HA.HTTP do
     end
   end
 
-  # TODO: deprecate this
   def request(method, url, headers \\ [], body \\ nil, receive_timeout \\ nil) do
     Logger.warn("[DEPRECATED] Use request/1")
 
@@ -51,9 +65,15 @@ defmodule HA.HTTP do
     |> request
   end
 
+  @idempotency_key_header "idempotency-key"
   def _request(request) do
     try do
-      Finch.build(request.method, request.url, request.headers, request.body)
+      Finch.build(
+        request.method,
+        request.url,
+        request.headers ++ [{@idempotency_key_header, request.idempotency_key}],
+        request.body
+      )
       |> Finch.request(HAFinch,
         receive_timeout: request.receive_timeout || @receive_timeout,
         pool_timeout: @pool_timeout

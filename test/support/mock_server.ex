@@ -12,6 +12,10 @@ defmodule MockServer do
     Agent.stop(__MODULE__)
   end
 
+  def agent_get(fun) do
+    Agent.get(__MODULE__, fun)
+  end
+
   def count_for(id) do
     Agent.get(__MODULE__, fn count_map ->
       count_map[to_string(id)]
@@ -36,6 +40,12 @@ defmodule MockServer do
 
   get "/refs/:id/:status" do
     inc(id)
+
+    Agent.update(__MODULE__, fn state ->
+      key = {id, :headers}
+      Map.put(state, key, [Map.new(conn.req_headers) | state[key] || []])
+    end)
+
     send_resp(conn, String.to_integer(status), content_for(status))
   end
 
