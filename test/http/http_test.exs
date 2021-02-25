@@ -2,14 +2,19 @@ defmodule HA.HTTPTest do
   use HA.DataCase
 
   alias HA.HTTP
+  alias HA.HTTP.Request
   require Logger
 
   @test_port 4032
   def test_url(path), do: "http://localhost:#{@test_port}/#{path}"
 
   setup_all do
+    MockServer.start_agent()
     Plug.Cowboy.http(MockServer, [], port: @test_port)
-    on_exit(fn -> Plug.Cowboy.shutdown(MockServer.HTTP) end)
+
+    on_exit(fn ->
+      Plug.Cowboy.shutdown(MockServer.HTTP)
+    end)
   end
 
   describe "error conditions return an error response" do
@@ -47,7 +52,7 @@ defmodule HA.HTTPTest do
 
       assert error.reason == :timeout
       # connect timeout is 100 ms
-      assert round(elapsed_us / 1000) in 100..110
+      assert round(elapsed_us / 1000) in 100..200
     end
 
     test "when we timeout reading" do
@@ -100,6 +105,7 @@ defmodule HA.HTTPTest do
 
         assert {:ok, resp} = HTTP.request(:get, url)
         assert resp.body == body
+        assert resp.status == status
       end
     end
   end
@@ -116,5 +122,21 @@ defmodule HA.HTTPTest do
     test "when response is smaller than content-length"
     @tag :skip
     test "when response is larger than content-length"
+  end
+
+  describe "retry" do
+    test "retries 3 times for 500" do
+      ref = :erlang.unique_integer([:positive])
+      assert {:ok, resp} = HTTP.request(%Request{url: test_url("refs/#{ref}/500")})
+      assert resp.status == 500
+      assert 4 == MockServer.count_for(ref)
+    end
+
+    test "retries 1 time when configured for 1 retry" do
+      ref = :erlang.unique_integer([:positive])
+      assert {:ok, resp} = HTTP.request(%Request{retry: 1, url: test_url("refs/#{ref}/501")})
+      assert resp.status == 501
+      assert 2 == MockServer.count_for(ref)
+    end
   end
 end

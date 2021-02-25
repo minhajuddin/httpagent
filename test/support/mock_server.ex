@@ -4,12 +4,39 @@ defmodule MockServer do
   plug :match
   plug :dispatch
 
+  def start_agent do
+    Agent.start_link(fn -> %{} end, name: __MODULE__)
+  end
+
+  def stop_agent do
+    Agent.stop(__MODULE__)
+  end
+
+  def count_for(id) do
+    Agent.get(__MODULE__, fn count_map ->
+      count_map[to_string(id)]
+    end)
+  end
+
+  def inc(id) do
+    id = to_string(id)
+
+    Agent.update(__MODULE__, fn count_map ->
+      Map.put(count_map, id, (count_map[id] || 0) + 1)
+    end)
+  end
+
   get("/status/:status", do: send_resp(conn, String.to_integer(status), content_for(status)))
   get("/large-response", do: send_resp(conn, 200, String.duplicate("a", 1000_000)))
 
   get "/" do
     conn
     |> send_resp(200, "OK")
+  end
+
+  get "/refs/:id/:status" do
+    inc(id)
+    send_resp(conn, String.to_integer(status), content_for(status))
   end
 
   get "/200ms_response" do
