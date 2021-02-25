@@ -7,6 +7,8 @@ defmodule HA.Application do
 
   def start(_type, _args) do
     children = [
+      # HTTP
+      {Registry, keys: :unique, name: HTTP.Registry},
       # Start the Ecto repository
       HA.Repo,
       # Start the Telemetry supervisor
