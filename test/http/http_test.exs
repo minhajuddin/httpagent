@@ -64,7 +64,7 @@ defmodule HA.HTTPTest do
       Enum.each(iters, fn i ->
         spawn(fn ->
           send(test_pid, {:done, i})
-          assert {:ok, resp} = HTTP.request(:get, test_url("sleep/200"), [], nil, 300)
+          assert {:ok, _resp} = HTTP.request(:get, test_url("sleep/200"), [], nil, 300)
         end)
       end)
 
@@ -76,7 +76,7 @@ defmodule HA.HTTPTest do
         end
       end)
 
-      assert {:error, error} = HTTP.request(:get, test_url("/"))
+      assert {:error, _error} = HTTP.request(:get, test_url("/"))
     end
   end
 
